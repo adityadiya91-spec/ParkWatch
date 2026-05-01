@@ -161,7 +161,7 @@ const Dashboard = () => {
             </tr>
           </thead>
           <tbody>
-            {reports.slice(0, 10).map(report => (
+            {reports.slice(0, 20).map(report => (
               <tr key={report.id}>
                 <td>
                   <input
