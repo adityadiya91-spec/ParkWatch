@@ -21,7 +21,7 @@ const violationTypes = [
 
 const STEPS = ['Violation', 'Location & Evidence', 'Review & Submit'];
 
-const EMPTY = { type: '', location: '', description: '', lat: '', lng: '', photo: '', photoName: '' };
+const EMPTY = { type: '', location: '', description: '', lat: '', lng: '', plateNumber: '', photos: [] };
 
 /* ═══════════════════════════════════════════ */
 const Reporting = () => {
@@ -41,16 +41,22 @@ const Reporting = () => {
     if (e.target.name === 'description') setCharCount(e.target.value.length);
   };
 
-  const loadPhoto = (file) => {
-    if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => setFormData(p => ({ ...p, photo: reader.result, photoName: file.name }));
-    reader.readAsDataURL(file);
+  const loadPhotos = (files) => {
+    if (!files?.length) return;
+    const images = Array.from(files).filter(file => file.type.startsWith('image/')).slice(0, 4 - formData.photos.length);
+    images.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => setFormData(p => ({
+        ...p,
+        photos: [...p.photos, { src: reader.result, name: file.name }]
+      }));
+      reader.readAsDataURL(file);
+    });
   };
 
   const handleDrop = (e) => {
     e.preventDefault(); setDragOver(false);
-    loadPhoto(e.dataTransfer.files?.[0]);
+    loadPhotos(e.dataTransfer.files);
   };
 
   const detectLocation = () => {
@@ -67,13 +73,23 @@ const Reporting = () => {
 
   /* step navigation */
   const canNext = () => {
-    if (step === 0) return formData.type && formData.description.trim().length >= 10;
-    if (step === 1) return formData.location.trim().length > 0;
+    if (step === 0) return formData.type && formData.description.trim().length >= 10 && formData.plateNumber.trim().length > 0;
+    if (step === 1) return formData.location.trim().length > 0 && formData.photos.length === 4;
     return true;
   };
 
   const handleSubmit = async () => {
-    const report = await mockDB.addReport({ ...formData, submittedBy: user?.name || user?.id || 'Citizen' });
+    const payload = {
+      type: formData.type,
+      location: formData.location,
+      description: formData.description,
+      lat: formData.lat,
+      lng: formData.lng,
+      plateNumber: formData.plateNumber,
+      photos: formData.photos,
+      submittedBy: user?.name || user?.id || 'Citizen',
+    };
+    const report = await mockDB.addReport(payload);
     setSubmitted(report);
   };
 
@@ -167,6 +183,18 @@ const Reporting = () => {
           </div>
 
           <div className="form-group">
+            <label htmlFor="plateNumber">Vehicle Number Plate *</label>
+            <input
+              type="text" id="plateNumber" name="plateNumber"
+              value={formData.plateNumber} onChange={handleChange}
+              placeholder="e.g., KA01AB1234"
+            />
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
+              Capture the full number plate so the enforcement team can identify the vehicle immediately.
+            </p>
+          </div>
+
+          <div className="form-group">
             <label htmlFor="description">
               Description *
               <span className={`char-count ${charCount < 10 ? 'warn' : ''}`}>{charCount}/500</span>
@@ -234,46 +262,41 @@ const Reporting = () => {
             )}
           </div>
 
-          {/* Drag-drop photo */}
           <div className="form-group">
-            <label>Photo Evidence <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional but recommended)</span></label>
-            <div
-              className={`drop-zone ${dragOver ? 'drag-over' : ''} ${formData.photo ? 'has-file' : ''}`}
-              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => !formData.photo && fileRef.current?.click()}
-            >
-              {formData.photo ? (
-                <div className="drop-zone-preview">
-                  <img src={formData.photo} alt="Evidence" />
-                  <div>
-                    <strong>{formData.photoName}</strong>
-                    <p>Photo attached for verification.</p>
-                    <button
-                      type="button" className="btn-ghost"
-                      style={{ marginTop: '0.5rem', padding: '0.3rem 0.65rem', fontSize: '0.78rem' }}
-                      onClick={e => { e.stopPropagation(); setFormData(p => ({ ...p, photo: '', photoName: '' })); }}
-                    >
-                      <X size={12} /> Remove
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="drop-zone-prompt">
-                  <Camera size={32} style={{ color: 'var(--accent-blue)', marginBottom: '0.5rem' }} />
-                  <p style={{ margin: 0, fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {dragOver ? 'Drop it!' : 'Drag & drop or click to upload'}
-                  </p>
-                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    JPG, PNG, WEBP up to 10MB
-                  </p>
-                </div>
-              )}
+            <label>Photo Evidence <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(required, 4 views)</span></label>
+            <p style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+              Capture the vehicle from all sides: front, rear, left, and right.
+            </p>
+            <div className="photo-grid">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  className={`photo-slot ${formData.photos[index] ? 'filled' : ''}`}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  {formData.photos[index] ? (
+                    <>
+                      <img src={formData.photos[index].src} alt={`Evidence ${index + 1}`} />
+                      <span>{formData.photos[index].name}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={24} style={{ marginBottom: '0.5rem' }} />
+                      <strong>Upload view {index + 1}</strong>
+                    </>
+                  )}
+                </button>
+              ))}
             </div>
-            <input ref={fileRef} type="file" accept="image/*"
-              onChange={e => loadPhoto(e.target.files?.[0])}
+            <input ref={fileRef} type="file" accept="image/*" multiple
+              onChange={e => loadPhotos(e.target.files)}
               style={{ display: 'none' }} />
+            <p style={{ fontSize: '0.78rem', color: formData.photos.length === 4 ? 'var(--accent-green)' : 'var(--accent-amber)', marginTop: '0.55rem' }}>
+              {formData.photos.length === 4
+                ? 'All four photos are attached.'
+                : `${formData.photos.length}/4 photos attached`}
+            </p>
           </div>
         </div>
       )}
@@ -297,6 +320,10 @@ const Reporting = () => {
               <span>Location</span>
               <strong>{formData.location}</strong>
             </div>
+            <div className="review-row">
+              <span>Number Plate</span>
+              <strong>{formData.plateNumber || 'Not provided'}</strong>
+            </div>
             {formData.lat && (
               <div className="review-row">
                 <span>GPS</span>
@@ -310,16 +337,22 @@ const Reporting = () => {
               <strong style={{ fontWeight: 400, color: 'var(--text-secondary)' }}>{formData.description}</strong>
             </div>
             <div className="review-row">
-              <span>Photo</span>
-              <strong>{formData.photo ? `✓ ${formData.photoName}` : 'Not provided'}</strong>
+              <span>Photos</span>
+              <strong>{formData.photos.length === 4 ? '✓ 4 photos attached' : `${formData.photos.length}/4 photos`}</strong>
             </div>
           </div>
 
-          {formData.photo && (
-            <img
-              src={formData.photo} alt="Evidence"
-              style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 12, marginTop: '1rem', border: '1px solid var(--border-subtle)' }}
-            />
+          {formData.photos.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: '0.85rem', marginTop: '1rem' }}>
+              {formData.photos.map((photo, index) => (
+                <img
+                  key={index}
+                  src={photo.src}
+                  alt={`Evidence ${index + 1}`}
+                  style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 12, border: '1px solid var(--border-subtle)' }}
+                />
+              ))}
+            </div>
           )}
 
           <div className="review-notice">

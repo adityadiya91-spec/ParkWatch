@@ -19,16 +19,66 @@ const statusBadge = (status) => {
 const Dashboard = () => {
   const navigate = useNavigate();
   const [reports, setReports] = useState([]);
+  const [selectedReports, setSelectedReports] = useState(new Set());
 
   useEffect(() => { mockDB.getReports().then(setReports); }, []);
-  const refreshReports = () => mockDB.getReports().then(setReports);
+  const refreshReports = async () => {
+    const updated = await mockDB.getReports();
+    setReports(updated);
+    setSelectedReports(new Set()); // Clear selections after refresh
+  };
 
-  const handleAction = (id, action) => {
+  const getChallanAmount = (report) => {
+    const mapping = {
+      'Illegal Parking': 500,
+      'Littering': 300,
+      'Vandalism': 1200,
+      'Noise Violation': 400,
+      'Other': 350,
+    };
+    return mapping[report?.type] || 500;
+  };
+
+  const handleAction = async (id, action) => {
     const note = action === 'Resolved'
       ? 'Violation accepted and marked resolved.'
       : 'Violation rejected by administrator.';
-    mockDB.updateReport(id, { status: action, note }).then(() => refreshReports());
-    refreshReports();
+    await mockDB.updateReport(id, { status: action, note });
+    await refreshReports();
+  };
+
+  const handleBulkAction = async (action) => {
+    if (selectedReports.size === 0) return;
+    const note = action === 'Resolved'
+      ? 'Bulk action: Violation accepted and marked resolved.'
+      : 'Bulk action: Violation rejected by administrator.';
+    const promises = Array.from(selectedReports).map(id =>
+      mockDB.updateReport(id, { status: action, note })
+    );
+    await Promise.all(promises);
+    await refreshReports();
+  };
+
+  const toggleSelectReport = (id) => {
+    const newSelected = new Set(selectedReports);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedReports(newSelected);
+  };
+
+  const selectAll = () => {
+    if (selectedReports.size === reports.slice(0, 10).length) {
+      setSelectedReports(new Set());
+    } else {
+      setSelectedReports(new Set(reports.slice(0, 10).map(r => r.id)));
+    }
+  };
+
+  const handleReview = (report) => {
+    navigate(`/admin/report/${report.id}`);
   };
 
   const handleLocationClick = (report) => {
@@ -75,13 +125,36 @@ const Dashboard = () => {
       {/* Reports Table */}
       <div className="section-title" style={{ marginTop: '2rem' }}>Recent Reports</div>
 
+      {selectedReports.size > 0 && (
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+            {selectedReports.size} report{selectedReports.size > 1 ? 's' : ''} selected
+          </span>
+          <button className="btn btn-accept" onClick={() => handleBulkAction('Resolved')}>
+            Bulk Resolve
+          </button>
+          <button className="btn btn-reject" onClick={() => handleBulkAction('Rejected')}>
+            Bulk Reject
+          </button>
+        </div>
+      )}
+
       <div className="table-wrapper">
         <table className="table">
           <thead>
             <tr>
+              <th style={{ width: '40px' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedReports.size === reports.slice(0, 10).length && reports.slice(0, 10).length > 0}
+                  onChange={selectAll}
+                />
+              </th>
               <th>ID</th>
               <th>Type</th>
+              <th>Plate</th>
               <th>Location</th>
+              <th>Evidence</th>
               <th>Status</th>
               <th>Submitted At</th>
               <th>Actions</th>
@@ -90,8 +163,16 @@ const Dashboard = () => {
           <tbody>
             {reports.slice(0, 10).map(report => (
               <tr key={report.id}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selectedReports.has(report.id)}
+                    onChange={() => toggleSelectReport(report.id)}
+                  />
+                </td>
                 <td><span style={{ fontFamily: 'monospace', color: 'var(--accent-cyan)', fontSize: '0.82rem' }}>{report.id}</span></td>
                 <td>{report.type}</td>
+                <td style={{ fontFamily: 'monospace', color: 'var(--accent-cyan)', fontSize: '0.82rem' }}>{report.plateNumber || 'N/A'}</td>
                 <td>
                   <button
                     onClick={() => handleLocationClick(report)}
@@ -114,17 +195,40 @@ const Dashboard = () => {
                     {report.location}
                   </button>
                 </td>
+                <td>
+                  {report.photos?.length > 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      {report.photos.slice(0, 2).map((photo, index) => (
+                        <img
+                          key={index}
+                          src={typeof photo === 'string' ? photo : photo?.src}
+                          alt={`Evidence ${index + 1}`}
+                          style={{ width: 48, height: 36, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-subtle)' }}
+                        />
+                      ))}
+                      {report.photos.length > 2 && (
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          +{report.photos.length - 2} more
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>No photo</span>
+                  )}
+                </td>
                 <td>{statusBadge(report.status)}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>{new Date(report.submittedAt).toLocaleDateString()}</td>
                 <td>
-                  {(report.status === 'Pending' || report.status === 'Under Review') ? (
-                    <div className="action-buttons">
-                      <button className="btn btn-accept" onClick={() => handleAction(report.id, 'Resolved')}>Accept</button>
-                      <button className="btn btn-reject" onClick={() => handleAction(report.id, 'Rejected')}>Reject</button>
-                    </div>
-                  ) : (
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>—</span>
-                  )}
+                  <div className="action-buttons">
+                    <button className="btn btn-primary" onClick={() => handleReview(report)}>
+                      {report.status === 'Pending' ? 'Review' : 'View'}
+                    </button>
+                    {(report.status === 'Pending' || report.status === 'Under Review') && (
+                      <button className="btn btn-reject" onClick={() => handleAction(report.id, 'Rejected')}>
+                        Reject
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

@@ -58,6 +58,9 @@ const Map = () => {
                   <strong style={{ display: 'block', marginBottom: 4, color: '#10b981' }}>📍 Selected Report</strong>
                   <strong style={{ display: 'block', marginBottom: 4 }}>{selectedReport.type}</strong>
                   <span style={{ fontSize: '0.82rem', color: '#555' }}>{selectedReport.location}</span><br />
+                  {selectedReport.plateNumber && (
+                    <span style={{ fontSize: '0.82rem', color: '#555' }}>Plate: {selectedReport.plateNumber}</span>
+                  )}<br />
                   <span style={{ fontSize: '0.82rem', color: '#555' }}>Status: {selectedReport.status}</span><br />
                   <code style={{ fontSize: '0.78rem', color: '#888' }}>{selectedReport.id}</code>
                 </div>
@@ -78,6 +81,9 @@ const Map = () => {
                 <div style={{ minWidth: 160 }}>
                   <strong style={{ display: 'block', marginBottom: 4 }}>{report.type}</strong>
                   <span style={{ fontSize: '0.82rem', color: '#555' }}>{report.location}</span><br />
+                  {report.plateNumber && (
+                    <span style={{ fontSize: '0.82rem', color: '#555' }}>Plate: {report.plateNumber}</span>
+                  )}<br />
                   <span style={{ fontSize: '0.82rem', color: '#555' }}>Status: {report.status}</span><br />
                   <code style={{ fontSize: '0.78rem', color: '#888' }}>{report.id}</code>
                 </div>

@@ -35,9 +35,23 @@ export const db = new sqlite3.Database(dbPath, (err) => {
       lat REAL,
       lng REAL,
       photo TEXT,
-      photoName TEXT
+      photoName TEXT,
+      photos TEXT,
+      plateNumber TEXT,
+      challan TEXT
     )`, (err) => {
       if (err) console.error("Error creating reports table", err);
+    });
+
+    // Backward compatibility: add new fields if database already exists
+    db.run('ALTER TABLE reports ADD COLUMN photos TEXT', (err) => {
+      if (err && !/duplicate column/i.test(err.message)) console.error('Error adding photos column', err.message);
+    });
+    db.run('ALTER TABLE reports ADD COLUMN plateNumber TEXT', (err) => {
+      if (err && !/duplicate column/i.test(err.message)) console.error('Error adding plateNumber column', err.message);
+    });
+    db.run('ALTER TABLE reports ADD COLUMN challan TEXT', (err) => {
+      if (err && !/duplicate column/i.test(err.message)) console.error('Error adding challan column', err.message);
     });
 
     db.run(`CREATE TABLE IF NOT EXISTS report_updates (

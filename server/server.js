@@ -10,6 +10,21 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
+const normalizeReport = (report) => {
+  if (!report) return report;
+  if (report.photos) {
+    try { report.photos = JSON.parse(report.photos); } catch (e) { report.photos = [report.photos]; }
+  } else if (report.photo) {
+    report.photos = [report.photo];
+  } else {
+    report.photos = [];
+  }
+  if (report.challan && typeof report.challan === 'string') {
+    try { report.challan = JSON.parse(report.challan); } catch (e) { /* leave as string */ }
+  }
+  return report;
+};
+
 // ========================
 // AUTHENTICATION
 // ========================
@@ -56,6 +71,7 @@ app.get('/api/reports', async (req, res) => {
     });
 
     reports.forEach(r => {
+      normalizeReport(r);
       r.updates = updatesMap[r.id] || [];
     });
 
@@ -70,6 +86,7 @@ app.get('/api/reports/:id', async (req, res) => {
     const r = await get('SELECT * FROM reports WHERE id = ?', [req.params.id]);
     if (!r) return res.status(404).json({ error: 'Not found' });
 
+    normalizeReport(r);
     const updates = await query('SELECT * FROM report_updates WHERE reportId = ? ORDER BY timestamp ASC', [r.id]);
     r.updates = updates;
     
@@ -81,7 +98,7 @@ app.get('/api/reports/:id', async (req, res) => {
 
 app.post('/api/reports', async (req, res) => {
   try {
-    const { type, location, description, submittedBy, lat, lng, photo, photoName } = req.body;
+    const { type, location, description, submittedBy, lat, lng, photos, plateNumber } = req.body;
     
     // Generate new ID (PW + padding)
     const countRow = await get('SELECT COUNT(*) as c FROM reports');
@@ -89,10 +106,11 @@ app.post('/api/reports', async (req, res) => {
     
     const submittedAt = new Date().toISOString();
     const status = 'Pending';
+    const photosJson = photos && Array.isArray(photos) ? JSON.stringify(photos) : null;
     
     await execute(
-      'INSERT INTO reports (id, type, location, description, status, submittedBy, submittedAt, lat, lng, photo, photoName) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [newId, type, location, description, status, submittedBy, submittedAt, lat || null, lng || null, photo || null, photoName || null]
+      'INSERT INTO reports (id, type, location, description, status, submittedBy, submittedAt, lat, lng, photos, plateNumber, challan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [newId, type, location, description, status, submittedBy, submittedAt, lat || null, lng || null, photosJson, plateNumber || null, null]
     );
 
     await execute(
@@ -101,6 +119,7 @@ app.post('/api/reports', async (req, res) => {
     );
 
     const r = await get('SELECT * FROM reports WHERE id = ?', [newId]);
+    normalizeReport(r);
     r.updates = [{ status, timestamp: submittedAt, note: 'Report submitted' }];
     
     res.status(201).json(r);
@@ -111,13 +130,20 @@ app.post('/api/reports', async (req, res) => {
 
 app.put('/api/reports/:id/status', async (req, res) => {
   try {
-    const { status, note } = req.body;
+    const { status, note, challan } = req.body;
     const { id } = req.params;
 
     const report = await get('SELECT * FROM reports WHERE id = ?', [id]);
     if (!report) return res.status(404).json({ error: 'Not found' });
 
-    await execute('UPDATE reports SET status = ? WHERE id = ?', [status, id]);
+    const updates = ['status = ?'];
+    const params = [status, id];
+    if (challan) {
+      updates.unshift('challan = ?');
+      params.unshift(JSON.stringify(challan));
+    }
+
+    await execute(`UPDATE reports SET ${updates.join(', ')} WHERE id = ?`, params);
     
     await execute(
       'INSERT INTO report_updates (reportId, status, timestamp, note) VALUES (?, ?, ?, ?)',

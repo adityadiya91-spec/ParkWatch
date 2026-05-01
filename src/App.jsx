@@ -13,6 +13,7 @@ import Reporting from './pages/Reporting';
 import Track from './pages/Track';
 import Map from './pages/Map';
 import Dashboard from './pages/Dashboard';
+import AdminReportView from './pages/AdminReportView';
 import Leaderboard from './pages/Leaderboard';
 import DataPortal from './pages/DataPortal';
 import Profile from './pages/Profile';
@@ -42,6 +43,7 @@ function App() {
             <Route path="/track" element={<RequireAuth requiredRole="Citizen"><Track /></RequireAuth>} />
             <Route path="/leaderboard" element={<RequireAuth requiredRole="Citizen"><Leaderboard /></RequireAuth>} />
             <Route path="/dashboard" element={<RequireAuth requiredRole="Admin"><Dashboard /></RequireAuth>} />
+            <Route path="/admin/report/:id" element={<RequireAuth requiredRole="Admin"><AdminReportView /></RequireAuth>} />
             <Route path="/map/:lat/:lng" element={<RequireAuth requiredRole="Admin"><Map /></RequireAuth>} />
             <Route path="/map" element={<RequireAuth requiredRole="Admin"><Map /></RequireAuth>} />
             <Route path="/data-portal" element={<RequireAuth requiredRole="Admin"><DataPortal /></RequireAuth>} />          </Routes>

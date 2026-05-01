@@ -141,6 +141,10 @@ const Track = () => {
               <strong>{report.location}</strong>
             </div>
             <div className="report-meta-item">
+              <span><Tag size={11} style={{ display:'inline', marginRight:4 }} />Number Plate</span>
+              <strong>{report.plateNumber || '—'}</strong>
+            </div>
+            <div className="report-meta-item">
               <span><User size={11} style={{ display:'inline', marginRight:4 }} />Submitted By</span>
               <strong>{report.submittedBy || '—'}</strong>
             </div>
@@ -159,13 +163,17 @@ const Track = () => {
             </div>
           )}
 
-          {/* Photo */}
-          {report.photo && (
+          {/* Photo Evidence */}
+          {report.photos && report.photos.length > 0 && (
             <div style={{ marginTop: '1.25rem' }}>
               <p className="section-title" style={{ marginBottom: '0.5rem' }}>Photo Evidence</p>
-              <img src={report.photo} alt="Report evidence"
-                style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 14,
-                  border: '1px solid var(--border-subtle)' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '0.85rem' }}>
+                {report.photos.map((photo, i) => (
+                  <img key={i} src={photo.src || photo} alt={`Report evidence ${i + 1}`}
+                    style={{ width: '100%', minHeight: 140, objectFit: 'cover', borderRadius: 14,
+                      border: '1px solid var(--border-subtle)' }} />
+                ))}
+              </div>
             </div>
           )}
 
